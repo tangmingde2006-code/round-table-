@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-indigo-950 text-gold-50 font-body antialiased;
+  }
+
+  ::selection {
+    @apply bg-gold-300/30 text-gold-50;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-indigo-950;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gold-600/40 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gold-500/60;
+  }
+}
+
+@layer components {
+  .card-gold {
+    @apply bg-indigo-900/60 border border-gold-300/20 rounded-xl backdrop-blur-sm;
+  }
+
+  .card-gold-hover {
+    @apply card-gold hover:border-gold-300/40 transition-all duration-300;
+  }
+
+  .btn-gold {
+    @apply px-6 py-2.5 rounded-lg border border-gold-300/60 text-gold-300
+           bg-gold-300/10 hover:bg-gold-300/20 hover:border-gold-300
+           hover:shadow-[0_0_20px_rgba(212,168,67,0.15)]
+           transition-all duration-300 font-medium;
+  }
+
+  .btn-gold-primary {
+    @apply px-8 py-3 rounded-lg border border-gold-300 text-indigo-950
+           bg-gold-300 hover:bg-gold-400 font-semibold
+           hover:shadow-[0_0_30px_rgba(212,168,67,0.3)]
+           transition-all duration-300;
+  }
+
+  .input-dark {
+    @apply w-full px-4 py-2.5 rounded-lg bg-indigo-950/80 border border-gold-300/20
+           text-gold-50 placeholder-gold-100/40
+           focus:outline-none focus:border-gold-300/50 focus:ring-1 focus:ring-gold-300/30
+           transition-all duration-300;
+  }
+
+  .badge-risk-low {
+    @apply px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30;
+  }
+
+  .badge-risk-medium {
+    @apply px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30;
+  }
+
+  .badge-risk-high {
+    @apply px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30;
+  }
+
+  .badge-risk-critical {
+    @apply px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+}
+
+@keyframes pulse-gold {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(212, 168, 67, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(212, 168, 67, 0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes rotate-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 2s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+}
+
+.animate-typing {
+  animation: typing 1.4s ease-in-out infinite;
+}
+
+.animate-rotate-slow {
+  animation: rotate-slow 20s linear infinite;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}

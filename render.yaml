@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: round-table-ai
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npx tsx api/server.ts
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
