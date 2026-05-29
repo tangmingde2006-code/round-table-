@@ -211,23 +211,30 @@ async function callAgent(
     console.log(`[Orchestrator] Calling agent (streaming): ${agent.nameZh} (${agent.id})`)
 
     let searchContext = ''
-    const needsSearch = ['fact_checker', 'stance_analyst', 'ethics_evaluator', 'intent_analyst', 'sentiment_analyst', 'sensitivity_reviewer'].includes(agent.id)
-    if (needsSearch && userMessage.length > 50) {
+    if (userMessage.length > 50) {
       try {
         const newsLines = userMessage.split('\n').filter(l => l.trim().length > 10 && !l.startsWith('#') && !l.startsWith('【'))
         const searchSnippet = newsLines.slice(0, 3).join(' ').slice(0, 300)
-        const searchQuery = agent.id === 'fact_checker'
-          ? `fact check ${searchSnippet}`
-          : agent.id === 'sentiment_analyst'
-          ? `public opinion ${searchSnippet}`
-          : agent.id === 'stance_analyst'
-          ? `media bias analysis ${searchSnippet}`
-          : agent.id === 'ethics_evaluator'
-          ? `religious ethics ${searchSnippet}`
-          : agent.id === 'intent_analyst'
-          ? `media intent ${searchSnippet}`
-          : `religious sensitivity ${searchSnippet}`
-        searchContext = await searchAndFormat(searchQuery, 5)
+
+        const generalSearch = await searchAndFormat(searchSnippet, 5, 'general')
+
+        const domainQueries: Record<string, string> = {
+          fact_checker: `fact check verify ${searchSnippet}`,
+          stance_analyst: `media bias political stance ${searchSnippet}`,
+          ethics_evaluator: `religious ethics moral perspective ${searchSnippet}`,
+          intent_analyst: `media framing propaganda analysis ${searchSnippet}`,
+          sentiment_analyst: `public reaction social media ${searchSnippet}`,
+          sensitivity_reviewer: `religious sensitivity cultural offense ${searchSnippet}`,
+          arbitrator: `expert analysis commentary ${searchSnippet}`,
+        }
+        const domainQuery = domainQueries[agent.id] || searchSnippet
+        const domainSearch = await searchAndFormat(domainQuery, 3, 'news')
+
+        const parts = [generalSearch]
+        if (domainSearch && domainSearch !== '【联网搜索未配置或无结果】' && domainSearch !== generalSearch) {
+          parts.push(domainSearch)
+        }
+        searchContext = parts.join('\n\n')
       } catch (e) {
         console.warn(`[Orchestrator] Search failed for ${agent.nameZh}:`, (e as Error).message)
       }

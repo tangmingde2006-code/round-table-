@@ -25,7 +25,7 @@ function getTavilyApiKey(): string {
   return ''
 }
 
-export async function webSearch(query: string, maxResults = 5): Promise<SearchResponse> {
+export async function webSearch(query: string, maxResults = 5, topic: 'news' | 'general' = 'general'): Promise<SearchResponse> {
   const apiKey = getTavilyApiKey()
   if (!apiKey) {
     console.warn('[Search] Tavily API Key not configured, skipping search')
@@ -42,7 +42,7 @@ export async function webSearch(query: string, maxResults = 5): Promise<SearchRe
         max_results: maxResults,
         search_depth: 'advanced',
         include_answer: true,
-        topic: 'news',
+        topic,
       }),
     })
 
@@ -65,8 +65,8 @@ export async function webSearch(query: string, maxResults = 5): Promise<SearchRe
   }
 }
 
-export async function searchAndFormat(query: string, maxResults = 5): Promise<string> {
-  const { results, answer } = await webSearch(query, maxResults)
+export async function searchAndFormat(query: string, maxResults = 5, topic: 'news' | 'general' = 'general'): Promise<string> {
+  const { results, answer } = await webSearch(query, maxResults, topic)
   if (results.length === 0 && !answer) return '【联网搜索未配置或无结果】'
 
   let formatted = `【联网搜索结果 - 查询: "${query}"】\n`
