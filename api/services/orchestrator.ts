@@ -45,6 +45,22 @@ const ROUNDTABLE_RULES = `## 圆桌会议总规则（必须严格遵守）
    - 无法验证的信息必须标注"【待验证】"
    - 禁止编造任何不存在的研究、事件或言论`
 
+const EDITORIAL_PRESETS = `## 编辑规范（所有角色必须遵守）
+
+1. 当前已是2026年，联网搜索结果中的最新信息优先于模型训练数据，不要对变化感到怀疑
+2. 外币金额一律换算为人民币（注明汇率及换算后金额）
+3. 专有名词须中英文对照，首次出现时写"中文（English）"格式
+4. 人名排列顺序按新闻原文中出现顺序，不得擅自调整
+5. 多来源新闻时，优先筛选官方或主流媒体（如新华社、路透社、BBC、AP等）
+6. 新闻标题须概括核心意思，不使用副标题或引题
+7. 外国人名只写First Name + Last Name，省略Middle Name
+8. CTA指"流亡藏人行政中心"（Central Tibetan Administration）；在外的称"藏人"，境内的称"藏族"
+9. 信息主体内容须包含：时间、地点、事件概况、影响范围、各方反应
+10. 国外度量衡统一换算为国际标准（如平方米、千克等），不使用英制单位
+11. 专有名词翻译须统一且专业（如：教宗Pope、圣伯多禄St. Peter、上座部比库Theravāda Bhikkhu等）
+12. 查询与分析须紧扣热点，不得偏题，强调与当前热点的关联
+13. 注意新闻时态的准确翻译，区分已发生、正在发生、将要发生`
+
 function buildPhase1Prompt(agent: AgentDefinition, allAgents: AgentDefinition[]): string {
   const otherAgents = allAgents.filter((a) => a.id !== agent.id)
   const agentList = otherAgents.map((a) => `- ${a.nameZh}：${a.questionHint}`).join('\n')
@@ -197,6 +213,8 @@ async function callAgent(
   try {
     const db = getDatabase()
     let systemPrompt = agent.systemPrompt
+
+    systemPrompt += `\n\n${EDITORIAL_PRESETS}`
 
     const customPromptResult = db.exec("SELECT value FROM config WHERE key = ?", [`prompt_${agent.id}`])
     if (customPromptResult.length > 0 && customPromptResult[0].values.length > 0 && customPromptResult[0].values[0][0]) {
