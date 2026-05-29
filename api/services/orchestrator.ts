@@ -267,12 +267,12 @@ async function callAgent(
   } catch (error: any) {
     console.error(`[Orchestrator] Agent ${agent.nameZh} failed: ${error.message}`)
     onEvent({
-      type: 'error',
+      type: 'agent_message',
       agentId: agent.id,
       agentName: agent.nameZh,
-      content: error.message || 'Agent execution failed',
+      content: `⚠️ 此角色分析过程中出现异常，已跳过。`,
+      durationMs: Date.now() - startTime,
     })
-    throw error
   }
 }
 
