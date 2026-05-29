@@ -61,7 +61,7 @@ export default function PromptStudio() {
       const json = await res.json()
       if (json.success) {
         setData(json.data)
-        setGlobalCriteria(json.data.globalCriteria || '')
+        setGlobalCriteria(json.data.global_criteria || '')
         const states: Record<string, AgentState> = {}
         json.data.agents.forEach((agent: AgentPrompt) => {
           const existing = DEFAULT_AGENT_STATES[agent.agentId]

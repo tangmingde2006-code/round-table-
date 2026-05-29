@@ -53,6 +53,35 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
   }
 })
 
+router.put('/global-criteria', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { criteria } = req.body
+
+    if (typeof criteria !== 'string') {
+      res.status(400).json({ success: false, error: 'criteria 必须为字符串' })
+      return
+    }
+
+    const db = getDatabase()
+
+    db.run(
+      `INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, datetime('now'))`,
+      ['global_criteria', criteria],
+    )
+    save()
+
+    res.json({
+      success: true,
+      data: {
+        global_criteria: criteria,
+      },
+    })
+  } catch (error: any) {
+    console.error('[Prompts] PUT /global-criteria failed:', error.message)
+    res.status(500).json({ success: false, error: error.message || '更新全局标准失败' })
+  }
+})
+
 router.put('/:agentId', async (req: Request, res: Response): Promise<void> => {
   try {
     const { agentId } = req.params
@@ -107,35 +136,6 @@ router.delete('/:agentId', async (req: Request, res: Response): Promise<void> =>
   } catch (error: any) {
     console.error('[Prompts] DELETE /:agentId failed:', error.message)
     res.status(500).json({ success: false, error: error.message || '重置提示词失败' })
-  }
-})
-
-router.put('/global-criteria', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { criteria } = req.body
-
-    if (typeof criteria !== 'string') {
-      res.status(400).json({ success: false, error: 'criteria 必须为字符串' })
-      return
-    }
-
-    const db = getDatabase()
-
-    db.run(
-      `INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, datetime('now'))`,
-      ['global_criteria', criteria],
-    )
-    save()
-
-    res.json({
-      success: true,
-      data: {
-        global_criteria: criteria,
-      },
-    })
-  } catch (error: any) {
-    console.error('[Prompts] PUT /global-criteria failed:', error.message)
-    res.status(500).json({ success: false, error: error.message || '更新全局标准失败' })
   }
 })
 

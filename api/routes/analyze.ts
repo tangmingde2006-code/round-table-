@@ -5,6 +5,8 @@ import { runAnalysis, type SSEEvent } from '../services/orchestrator.js'
 
 const router = Router()
 
+const runningTasks = new Set<string>()
+
 router.post('/', async (req: Request, res: Response): Promise<void> => {
   const { content, url, options } = req.body
 
@@ -92,13 +94,40 @@ router.get('/:taskId/stream', async (req: Request, res: Response): Promise<void>
   }
 
   try {
-    await runAnalysis(taskId, content, sendSSE)
-    sendSSE({ type: 'complete' })
-  } catch (error: any) {
-    sendSSE({
-      type: 'error',
-      content: error.message || 'Analysis failed',
+    if (runningTasks.has(taskId)) {
+      sendSSE({
+        type: 'error',
+        content: '该任务正在分析中，请勿重复连接。刷新页面后将自动接收进度。',
+      })
+      res.end()
+      return
+    }
+
+    runningTasks.add(taskId)
+    let clientDisconnected = false
+    req.on('close', () => {
+      clientDisconnected = true
+      console.log(`[Analyze] Client disconnected for task ${taskId}`)
     })
+
+    const guardedSendSSE = (event: SSEEvent) => {
+      if (clientDisconnected) return
+      sendSSE(event)
+    }
+
+    await runAnalysis(taskId, content, guardedSendSSE)
+    if (!clientDisconnected) {
+      sendSSE({ type: 'complete' })
+    }
+  } catch (error: any) {
+    try {
+      sendSSE({
+        type: 'error',
+        content: error.message || 'Analysis failed',
+      })
+    } catch {}
+  } finally {
+    runningTasks.delete(taskId)
   }
 
   res.end()

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Filter, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -56,6 +56,7 @@ export default function History() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [keyword, setKeyword] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [riskFilter, setRiskFilter] = useState('')
 
   useEffect(() => {
@@ -64,7 +65,7 @@ export default function History() {
       page: String(page),
       pageSize: '10',
     })
-    if (keyword) params.set('keyword', keyword)
+    if (searchTerm) params.set('keyword', searchTerm)
     if (riskFilter) params.set('riskLevel', riskFilter)
 
     fetch(`/api/history?${params}`)
@@ -77,10 +78,11 @@ export default function History() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [page, keyword, riskFilter])
+  }, [page, searchTerm, riskFilter])
 
   const handleSearch = () => {
     setPage(1)
+    setSearchTerm(keyword)
   }
 
   return (

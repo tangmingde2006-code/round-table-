@@ -60,6 +60,15 @@ CREATE TABLE IF NOT EXISTS config (
   value TEXT,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS knowledge_base (
+  id TEXT PRIMARY KEY,
+  filename TEXT,
+  title TEXT,
+  content TEXT,
+  category TEXT,
+  created_at TEXT
+);
 `
 
 const SEED_DATA = `

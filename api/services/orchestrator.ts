@@ -222,7 +222,11 @@ async function callAgent(
 
     let knowledgeContext = ''
     if (userMessage.length > 50) {
-      knowledgeContext = formatKnowledgeForPrompt(userMessage.slice(0, 200), 2)
+      try {
+        knowledgeContext = formatKnowledgeForPrompt(userMessage.slice(0, 200), 2)
+      } catch (e) {
+        console.warn(`[Orchestrator] Knowledge base lookup failed, continuing without it:`, (e as Error).message)
+      }
     }
 
     const messages = [
@@ -276,6 +280,12 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
   const db = getDatabase()
   const allAgents = getAllAgents()
 
+  let aborted = false
+  const guardedOnEvent: OnEventCallback = (event) => {
+    if (aborted) return
+    onEvent(event)
+  }
+
   const enabledAgentsResult = db.exec("SELECT value FROM config WHERE key = 'enabled_agents'")
   let enabledAgentIds: string[] | null = null
   if (enabledAgentsResult.length > 0 && enabledAgentsResult[0].values.length > 0) {
@@ -288,6 +298,13 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
     ? allAgents.filter((a) => enabledAgentIds!.includes(a.id) || a.id === 'arbitrator')
     : allAgents
 
+  if (activeAgents.filter((a) => a.id !== 'arbitrator').length < 2) {
+    guardedOnEvent({ type: 'error', content: '至少需要启用2个分析角色才能进行圆桌讨论' })
+    db.run("UPDATE analysis_tasks SET status = 'failed', completed_at = datetime('now') WHERE id = ?", [taskId])
+    save()
+    return
+  }
+
   const discussionLog: string[] = []
   const questionsMap: Map<string, Array<{from: string, fromId: string, question: string}>> = new Map()
   for (const agent of activeAgents) {
@@ -295,7 +312,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
   }
 
   // ========== Phase 1: Questioning (1 question each) ==========
-  onEvent({
+  guardedOnEvent({
     type: 'phase_start',
     phase: 'questioning',
     content: '圆桌会议启动，进入阶段一：互相提问',
@@ -305,6 +322,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
   let phase1SuccessCount = 0
 
   for (let i = 0; i < activeAgents.length; i++) {
+    if (aborted) break
     const agent = activeAgents[i]
     const progress = Math.round(((i + 1) / activeAgents.length) * 20)
 
@@ -312,7 +330,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
       const newsContext = `${ROUNDTABLE_RULES}\n\n## 新闻内容\n\n${content}`
       const prompt = buildPhase1Prompt(agent, activeAgents)
 
-      const response = await callAgent(agent, `${newsContext}\n\n${prompt}`, onEvent)
+      const response = await callAgent(agent, `${newsContext}\n\n${prompt}`, guardedOnEvent)
 
       discussionLog.push(`【阶段一·${agent.nameZh}提问】\n${response}`)
 
@@ -326,7 +344,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
           existing.push({ from: agent.nameZh, fromId: agent.id, question: q.question })
           questionsMap.set(targetAgent.id, existing)
 
-          onEvent({
+          guardedOnEvent({
             type: 'question_extracted',
             agentId: agent.id,
             agentName: agent.nameZh,
@@ -342,10 +360,12 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
       discussionLog.push(`【阶段一·${agent.nameZh}提问】⚠️ 此角色因错误未能完成提问`)
     }
 
-    onEvent({ type: 'agent_complete', agentId: agent.id, agentName: agent.nameZh, progress })
+    guardedOnEvent({ type: 'agent_complete', agentId: agent.id, agentName: agent.nameZh, progress })
   }
 
-  onEvent({
+  if (aborted) return
+
+  guardedOnEvent({
     type: 'phase_complete',
     phase: 'questioning',
     content: '阶段一完成，进入阶段二：问题筛选',
@@ -355,12 +375,12 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
   if (phase1SuccessCount === 0) {
     db.run("UPDATE analysis_tasks SET status = 'failed', completed_at = datetime('now') WHERE id = ?", [taskId])
     save()
-    onEvent({ type: 'error', content: 'All agents failed in phase 1' })
+    guardedOnEvent({ type: 'error', content: 'All agents failed in phase 1' })
     return
   }
 
   // ========== Phase 2: Question Evaluation ==========
-  onEvent({
+  guardedOnEvent({
     type: 'phase_start',
     phase: 'question_eval',
     content: '进入阶段二：问题筛选（仲裁官评估问题必要性）',
@@ -371,7 +391,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
   if (!arbitrator) {
     db.run("UPDATE analysis_tasks SET status = 'failed', completed_at = datetime('now') WHERE id = ?", [taskId])
     save()
-    onEvent({ type: 'error', content: 'Arbitrator agent not found' })
+    guardedOnEvent({ type: 'error', content: 'Arbitrator agent not found' })
     return
   }
 
@@ -386,7 +406,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
     const newsContext = `${ROUNDTABLE_RULES}\n\n## 新闻内容\n\n${content}`
     const prompt = buildQuestionEvalPrompt(allQuestionsText)
 
-    evalResult = await callAgent(arbitrator, `${newsContext}\n\n${prompt}`, onEvent)
+    evalResult = await callAgent(arbitrator, `${newsContext}\n\n${prompt}`, guardedOnEvent)
     discussionLog.push(`【阶段二·综合仲裁官问题筛选】\n${evalResult}`)
 
     const keptQuestions = extractEvaluatedQuestions(evalResult)
@@ -415,7 +435,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
       questionsMap.set(targetId, questions)
     }
 
-    onEvent({
+    guardedOnEvent({
       type: 'phase_complete',
       phase: 'question_eval',
       content: `问题筛选完成。共提出 ${Array.from(questionsMap.values()).flat().length} 个问题，保留 ${Array.from(filteredMap.values()).flat().length} 个必须回答的问题。`,
@@ -423,17 +443,18 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
     })
   } catch {
     discussionLog.push(`【阶段二·问题筛选】⚠️ 筛选失败，将保留所有问题`)
+    guardedOnEvent({
+      type: 'phase_complete',
+      phase: 'question_eval',
+      content: '问题筛选失败，将保留所有问题进入阶段三。',
+      progress: 35,
+    })
   }
 
-  onEvent({
-    type: 'phase_complete',
-    phase: 'question_eval',
-    content: '阶段二完成，进入阶段三：回答与辩论',
-    progress: 35,
-  })
+  if (aborted) return
 
   // ========== Phase 3: Answering & Debate ==========
-  onEvent({
+  guardedOnEvent({
     type: 'phase_start',
     phase: 'answering',
     content: '进入阶段三：回答与辩论',
@@ -443,6 +464,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
   let phase3SuccessCount = 0
 
   for (let i = 0; i < activeAgents.length; i++) {
+    if (aborted) break
     const agent = activeAgents[i]
     const progress = 35 + Math.round(((i + 1) / activeAgents.length) * 35)
 
@@ -452,7 +474,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
       const prompt = buildPhase3Prompt(agent, questionsForAgent, allMessagesSoFar)
       const newsContext = `${ROUNDTABLE_RULES}\n\n## 新闻内容\n\n${content}`
 
-      const response = await callAgent(agent, `${newsContext}\n\n${prompt}`, onEvent)
+      const response = await callAgent(agent, `${newsContext}\n\n${prompt}`, guardedOnEvent)
 
       discussionLog.push(`【阶段三·${agent.nameZh}回答】\n${response}`)
       phase3SuccessCount++
@@ -460,10 +482,12 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
       discussionLog.push(`【阶段三·${agent.nameZh}回答】⚠️ 此角色因错误未能完成回答`)
     }
 
-    onEvent({ type: 'agent_complete', agentId: agent.id, agentName: agent.nameZh, progress })
+    guardedOnEvent({ type: 'agent_complete', agentId: agent.id, agentName: agent.nameZh, progress })
   }
 
-  onEvent({
+  if (aborted) return
+
+  guardedOnEvent({
     type: 'phase_complete',
     phase: 'answering',
     content: '阶段三完成，进入阶段四：仲裁与决策',
@@ -471,14 +495,14 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
   })
 
   // ========== Phase 4: Arbitration ==========
-  onEvent({
+  guardedOnEvent({
     type: 'phase_start',
     phase: 'arbitration',
     content: '进入阶段四：仲裁与决策',
     progress: 70,
   })
 
-  onEvent({
+  guardedOnEvent({
     type: 'arbitration_start',
     agentId: arbitrator.id,
     agentName: arbitrator.nameZh,
@@ -490,7 +514,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
     const prompt = buildPhase4Prompt(allMessages)
     const newsContext = `${ROUNDTABLE_RULES}\n\n## 新闻内容\n\n${content}`
 
-    const raw = await callAgent(arbitrator, `${newsContext}\n\n${prompt}`, onEvent, true)
+    const raw = await callAgent(arbitrator, `${newsContext}\n\n${prompt}`, guardedOnEvent, true)
 
     let parsed: any = null
     try {
@@ -537,7 +561,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
     db.run("UPDATE analysis_tasks SET status = 'completed', completed_at = datetime('now') WHERE id = ?", [taskId])
     save()
 
-    onEvent({
+    guardedOnEvent({
       type: 'arbitration_complete',
       agentId: arbitrator.id,
       agentName: arbitrator.nameZh,
@@ -548,7 +572,7 @@ export async function runAnalysis(taskId: string, content: string, onEvent: OnEv
     console.error(`[Orchestrator] Arbitration failed: ${error.message}`)
     db.run("UPDATE analysis_tasks SET status = 'failed', completed_at = datetime('now') WHERE id = ?", [taskId])
     save()
-    onEvent({
+    guardedOnEvent({
       type: 'error',
       content: `Arbitration failed: ${error.message}`,
     })
