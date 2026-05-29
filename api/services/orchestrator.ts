@@ -211,13 +211,26 @@ async function callAgent(
     console.log(`[Orchestrator] Calling agent (streaming): ${agent.nameZh} (${agent.id})`)
 
     let searchContext = ''
-    const needsSearch = ['fact_checker', 'sentiment_analyst'].includes(agent.id)
+    const needsSearch = ['fact_checker', 'stance_analyst', 'ethics_evaluator', 'intent_analyst', 'sentiment_analyst', 'sensitivity_reviewer'].includes(agent.id)
     if (needsSearch && userMessage.length > 50) {
-      const newsSnippet = userMessage.slice(0, 200)
-      const searchQuery = agent.id === 'fact_checker'
-        ? `事实核查: ${newsSnippet}`
-        : `舆情分析: ${newsSnippet}`
-      searchContext = await searchAndFormat(searchQuery, 3)
+      try {
+        const newsLines = userMessage.split('\n').filter(l => l.trim().length > 10 && !l.startsWith('#') && !l.startsWith('【'))
+        const searchSnippet = newsLines.slice(0, 3).join(' ').slice(0, 300)
+        const searchQuery = agent.id === 'fact_checker'
+          ? `fact check ${searchSnippet}`
+          : agent.id === 'sentiment_analyst'
+          ? `public opinion ${searchSnippet}`
+          : agent.id === 'stance_analyst'
+          ? `media bias analysis ${searchSnippet}`
+          : agent.id === 'ethics_evaluator'
+          ? `religious ethics ${searchSnippet}`
+          : agent.id === 'intent_analyst'
+          ? `media intent ${searchSnippet}`
+          : `religious sensitivity ${searchSnippet}`
+        searchContext = await searchAndFormat(searchQuery, 5)
+      } catch (e) {
+        console.warn(`[Orchestrator] Search failed for ${agent.nameZh}:`, (e as Error).message)
+      }
     }
 
     let knowledgeContext = ''
